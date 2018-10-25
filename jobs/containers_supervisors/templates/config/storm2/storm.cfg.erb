@@ -1,0 +1,20 @@
+<% peers = link('nimbuspeer') %>
+<% instanceaddr = "storm.host=" %>
+<% peers.instances.each_with_index do |instance,index| %>
+<% instanceaddr = instanceaddr + instance.address %>
+<% if index < peers.instances.length-1 %>
+<% instanceaddr = instanceaddr + "," %>
+<% end %>
+<% end %>
+
+<% instanceaddr = instanceaddr + "," %>
+
+<% peers = link('supervisorpeers') %>
+<% peers.instances.each_with_index do |instance,index| %>
+<% instanceaddr = instanceaddr + instance.address %>
+<% if index < peers.instances.length-1 %>
+<% instanceaddr = instanceaddr + "," %>
+<% end %>
+<% end %>
+
+<%= instanceaddr %>

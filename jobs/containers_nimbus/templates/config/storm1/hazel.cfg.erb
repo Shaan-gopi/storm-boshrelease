@@ -1,0 +1,9 @@
+<% peers = link('hazelpeers') %>
+<% instanceaddr = "hazel.host=" %>
+<% peers.instances.each_with_index do |instance,index| %>
+<% instanceaddr = instanceaddr + instance.address %>
+<% if index < peers.instances.length-1 %>
+<% instanceaddr = instanceaddr + "," %>
+<% end %>
+<% end %>
+<%= instanceaddr %>

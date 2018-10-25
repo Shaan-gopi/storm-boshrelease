@@ -1,0 +1,10 @@
+<% peers = link('peers') %>
+<% instanceaddr = "zookeeper.host=" %>
+<% peers.instances.each_with_index do |instance,index| %>
+<% instanceaddr = instanceaddr + instance.address + ":2181" %>
+<% if index < peers.instances.length-1 %>
+<% instanceaddr = instanceaddr + "," %>
+<% end %>
+<% end %>
+
+<%= instanceaddr %>

@@ -1,0 +1,40 @@
+########### These MUST be filled in for a storm configuration
+storm.zookeeper.servers:
+     - "zk1"
+     - "zk2"
+     - "zk3"
+#
+nimbus.seeds: ["storm_nimbus"]
+storm.local.dir: /data/storm
+supervisor.slots.ports:
+     - 6701
+     - 6702
+     - 6703
+     - 6704
+     - 6705
+     - 6706
+     - 6707
+     - 6708
+     - 6709
+     - 6710
+     - 6711
+     - 6712
+     - 6713
+     - 6714
+     - 6715
+     - 6716
+nimbus.childopts: "-XX:ParallelGCThreads=2 -Xmx200m"
+ui.childopts: "-XX:ParallelGCThreads=2 -Xmx200m"
+worker.childopts: "-Xms256m  -Xmx4096m  -XX:PermSize=256m -XX:MaxPermSize=1024m -DRUNINSTORM=true -DSTORMCLUSTER=true -Dalcatraz.hazelcast.mode=true -Dalcatraz.hazelcast.hosts=hazel1:5701,hazel2:5701,hazel3:5701 -Duser.timezone=GMT -Xdebug -Xnoagent -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=2%ID%"
+storm.zookeeper.session.timeout: 60000
+storm.zookeeper.connection.timeout: 40000
+storm.zookeeper.retry.times: 8
+storm.zookeeper.retry.interval: 4000
+ui.port: 8089
+
+java.library.path: /home/apcuser/apps/zeromq-3.2.4/lib:/usr/lib
+storm.health.check.dir: "/data/storm/healthchecks"
+storm.health.check.timeout.ms: 5000
+supervisor.worker.timeout.secs: 120
+supervisor.worker.start.timeout.secs: 180
+topology.stats.sample.rate: 1
