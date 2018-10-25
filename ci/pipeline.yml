@@ -1,0 +1,316 @@
+groups:
+- name: docker-boshrelease
+  jobs:
+  - test-docker-boshrelease
+  - test-docker-boshrelease-pr
+  - release-candidate
+  - ship-it
+  - bump-major
+  - bump-minor
+  - bump-docker-components
+
+resource_types:
+- name: slack-notification
+  type: docker-image
+  source:
+    repository: cfcommunity/slack-notification-resource
+
+- name: pull-request
+  type: docker-image
+  source:
+    repository: jtarchie/pr
+
+- name: gcs
+  type: docker-image
+  source:
+    repository: frodenas/gcs-resource
+
+- name: github-release-with-version-filtering
+  type: docker-image
+  source:
+    repository: pcfkubo/github-release-resource
+    tag: filter-version
+
+resources:
+- name: git-docker-boshrelease
+  type: git
+  source:
+    uri: git@github.com:cloudfoundry-incubator/docker-boshrelease
+    branch: master
+    private_key: ((git-ssh-key.private_key))
+
+- name: git-pull-requests
+  type: pull-request
+  source:
+    repo: cloudfoundry-incubator/docker-boshrelease
+    base: master
+    private_key: ((git-ssh-key.private_key))
+    access_token: ((github-token-key))
+
+- name: version
+  type: semver
+  source:
+    driver: gcs
+    bucket: kubo-pipeline-store
+    key: versions/docker-boshrelease-version
+    json_key: ((gcs-json-key))
+    initial_version: 31.0.1
+
+- name: slack-notification
+  type: slack-notification
+  # source:
+  #   url: ((build-alert-slack-url))
+
+- name: github-release
+  type: github-release
+  source:
+    owner: cloudfoundry-incubator
+    repository: docker-boshrelease
+    access_token: ((github-token-key))
+
+- name: s3-tarball
+  type: gcs
+  source:
+    bucket: docker-boshrelease
+    json_key: ((gcs-json-key))
+    regexp: docker-(.*).tgz
+
+- name: ubuntu-trusty-stemcell-gcp
+  type: bosh-io-stemcell
+  source:
+    name: bosh-google-kvm-ubuntu-trusty-go_agent
+
+- name: git-docker-ce-release
+  type: github-release-with-version-filtering
+  source:
+    owner: docker
+    repository: docker-ce
+    version_filter: "< 18.0.0"
+    access_token: ((github-token-key))
+
+jobs:
+- name: test-docker-boshrelease
+  public: true
+  serial: true
+  plan:
+  - do:
+    - aggregate:
+      - get: git-docker-boshrelease
+        trigger: true
+      - get: stemcell
+        resource: ubuntu-trusty-stemcell-gcp
+    - task: test-docker-boshrelease
+      file: git-docker-boshrelease/ci/tasks/test-docker-boshrelease.yml
+      params: &test_docker_boshrelease_params
+        PROXY_PRIVATE_KEY: ((docker-bosh.proxy-private-key))
+        PROXY_USERNAME: ((docker-bosh.proxy-username))
+        PROXY_IP: ((docker-bosh.proxy-ip))
+        BOSH_CA_CERT: ((docker-bosh.ca-cert))
+        BOSH_CLIENT: ((docker-bosh.client))
+        BOSH_CLIENT_SECRET: ((docker-bosh.client-secret))
+        BOSH_DEPLOYMENT: docker-testflight
+        BOSH_ENVIRONMENT: ((docker-bosh.environment))
+        MANIFEST_PATH: git-docker-boshrelease/manifests/containers/example.yml
+    - task: test-docker-boshrelease-swarm
+      file: git-docker-boshrelease/ci/tasks/test-docker-boshrelease.yml
+      params:
+        <<: *test_docker_boshrelease_params
+        BOSH_DEPLOYMENT: docker-swarm-testflight
+        MANIFEST_PATH: git-docker-boshrelease/manifests/swarm/docker-swarm.yml
+    - task: run-integration-tests
+      file: git-docker-boshrelease/ci/tasks/test-docker-boshrelease.yml
+      params:
+        <<: *test_docker_boshrelease_params
+        BOSH_DEPLOYMENT: docker-integration-tests
+        MANIFEST_PATH: git-docker-boshrelease/manifests/testing/example.yml
+        RUN_TESTS: true
+
+    on_failure:
+      put: slack-notification
+      params:
+        channel: '#docker-boshrelease'
+        text: '<https://ci.kubo.sh/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME|
+          Concourse Failure! :sad_panda:> docker-boshrelease: test-docker-boshrelease job failed'
+
+- name: test-docker-boshrelease-pr
+  public: true
+  serial: true
+  plan:
+  - do:
+    - aggregate:
+      - get: git-docker-boshrelease
+      - get: git-pull-requests
+        version: every
+        trigger: true
+      - get: stemcell
+        resource: ubuntu-trusty-stemcell-gcp
+    - put: git-pull-requests
+      params:
+        path: git-pull-requests
+        status: pending
+    - task: test-docker-boshrelease
+      file: git-docker-boshrelease/ci/tasks/test-docker-boshrelease-pr.yml
+      params:
+        <<: *test_docker_boshrelease_params
+        BOSH_DEPLOYMENT: docker-testflight-pr
+        MANIFEST_PATH: git-pull-requests/manifests/containers/example.yml
+      on_failure:
+        put: git-pull-requests
+        params:
+          path: git-pull-requests
+          status: failure
+      on_success:
+        put: git-pull-requests
+        params:
+          path: git-pull-requests
+          status: success
+    - task: test-docker-boshrelease-swarm
+      file: git-docker-boshrelease/ci/tasks/test-docker-boshrelease-pr.yml
+      params:
+        <<: *test_docker_boshrelease_params
+        BOSH_DEPLOYMENT: docker-swarm-testflight-pr
+        MANIFEST_PATH: git-pull-requests/manifests/swarm/docker-swarm.yml
+    - task: run-integration-tests
+      file: git-docker-boshrelease/ci/tasks/test-docker-boshrelease-pr.yml
+      params:
+        <<: *test_docker_boshrelease_params
+        BOSH_DEPLOYMENT: docker-integration-tests
+        MANIFEST_PATH: git-docker-boshrelease/manifests/testing/example.yml
+        RUN_TESTS: true
+    - task: pr-success-message
+      file: git-docker-boshrelease/ci/tasks/configure-pr-status.yml
+    on_success:
+      put: slack-notification
+      params:
+        channel: '#docker-boshrelease'
+        text_file: message/body
+
+- name: release-candidate
+  public: true
+  plan:
+  - do:
+    - aggregate:
+      - get: git-docker-boshrelease
+        passed: [ test-docker-boshrelease ]
+        trigger: true
+      - get: version
+        params:
+          pre: rc
+        trigger: true
+    - put: version
+      params:
+        file: version/number
+    on_failure:
+      put: slack-notification
+      params:
+        channel: '#docker-boshrelease'
+        text: '<https://ci.kubo.sh/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME|
+          Concourse Failure! :sad_panda:> docker-boshrelease: rc job failed'
+
+- name: bump-minor
+  public: true
+  plan:
+  - do:
+    - get: version
+      params:
+        bump: minor
+      trigger: false
+    - put: version
+      params:
+        file: version/number
+    on_failure:
+      put: slack-notification
+      params:
+        channel: '#docker-boshrelease'
+        text: '<https://ci.kubo.sh/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME|
+          Concourse Failure! :sad_panda:> docker-boshrelease: bump-minor job failed'
+
+- name: bump-major
+  public: true
+  plan:
+  - do:
+    - get: version
+      params:
+        bump: major
+      trigger: false
+    - put: version
+      params:
+        file: version/number
+    on_failure:
+      put: slack-notification
+      params:
+        channel: '#docker-boshrelease'
+        text: '<https://ci.kubo.sh/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME|
+          Concourse Failure! :sad_panda:> docker-boshrelease: bump-major job failed'
+
+- name: ship-it
+  public: true
+  serial: true
+  plan:
+  - do:
+    - aggregate:
+      - get: version
+        params:
+          bump: final
+        passed: [ release-candidate ]
+      - get: git-docker-boshrelease
+        passed: [ release-candidate ]
+      name: inputs
+    - task: release
+      file: git-docker-boshrelease/ci/tasks/ship-it.yml
+      params:
+        S3_ACCESS_KEY:  ((gcs-access-key-id))
+        S3_SECRET_KEY: ((gcs-secret-access-key))
+        BRANCH: master
+        GIT_EMAIL: "cfcr+cibot@pivotal.io"
+        GIT_NAME: "CFCR CI BOT"
+        GITHUB_OWNER: cloudfoundry-incubator
+        NOTIFICATION_OUT: notifications
+        RELEASE_ROOT: gh
+        REPO_OUT: pushme
+        REPO_ROOT: git-docker-boshrelease
+        VERSION_FROM: version/number
+    - put: git-docker-boshrelease
+      params:
+        rebase: true
+        repository: pushme/git-docker-boshrelease
+    - put: s3-tarball
+      params:
+        file: gh/artifacts/docker-*.tgz
+    - put: github-release
+      params:
+        body: gh/notes.md
+        globs:
+        - gh/artifacts/*
+        name: gh/name
+        tag: gh/tag
+    - put: version
+      params:
+        bump: patch
+    - aggregate:
+      - put: slack-notification
+        params:
+          channel: '#docker-boshrelease'
+          text_file: notifications/message
+    on_failure:
+      put: slack-notification
+      params:
+        channel: '#docker-boshrelease'
+        text: '<https://ci.kubo.sh/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME|
+          Concourse Failure! :sad_panda:> docker-boshrelease: shipit job failed'
+
+- name: bump-docker-components
+  plan:
+  - get: git-docker-boshrelease
+  - get: git-docker-ce-release
+    trigger: true
+    params:
+      include_source_tarball: true
+  - task: update-docker
+    file: git-docker-boshrelease/ci/tasks/bump-docker-version.yml
+    params:
+      ACCESS_KEY_ID: ((gcs-access-key-id))
+      SECRET_ACCESS_KEY: ((gcs-secret-access-key))
+  - put: git-docker-boshrelease
+    params:
+      repository: git-docker-boshrelease-output

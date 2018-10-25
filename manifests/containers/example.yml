@@ -1,0 +1,99 @@
+---
+name: storm
+
+instance_groups:
+
+- name: nimbus_instance
+  azs: [z1,z2]
+  vm_type: default
+  instances: 1
+  persistent_disk: 65536
+  stemcell: default
+  networks: [{name: default}]
+  jobs:
+  - name: docker
+    release: storm
+    instances: 1
+    properties:
+      tcp_address: 0.0.0.0
+      tls_cacert: "((docker-tls.ca))"
+      tls_cert: "((docker-tls.certificate))"
+      tls_key: "((docker-tls.private_key))"
+  - name: containers_nimbus
+    release: storm
+    instances: 1
+    provides:
+      nimbuspeer: {shared:true}
+    consumes:
+      hazelpeers: {from: hazelpeers, deployment: hazel }
+      peers: {from:peers, deployment: zoo}
+      supervisorpeers:{from: supervisorpeers}
+    properties:
+      containers:
+        - name: storm1
+          image: "fab-ci-remote-agent:443/storm1"
+          memory: "4096m"
+          env_vars:
+            - "EXAMPLE_VAR=1"
+
+- name: supervisor_instances
+  azs: [z1,z2]
+  instances: 1
+  vm_type: default
+  persistent_disk: 65536
+  stemcell: default
+  networks: [{name: default}]
+  jobs:
+  - name: docker
+    release: storm
+    properties:
+      tcp_address: 0.0.0.0
+      tls_cacert: "((docker-tls.ca))"
+      tls_cert: "((docker-tls.certificate))"
+      tls_key: "((docker-tls.private_key))"
+  - name: containers_supervisors
+    release: storm
+    provides:
+      supervisorpeers: {shared:true}
+    consumes:
+      hazelpeers: {from: hazelpeers, deployment: hazel }
+      peers: {from:peers, deployment: zoo}
+      nimbuspeer:{from: nimbuspeer}
+    properties:
+      containers:
+        - name: storm2
+          image: "fab-ci-remote-agent:443/storm1"
+          memory: "2048m"
+          env_vars:
+            - "EXAMPLE_VAR=1"
+
+
+variables:
+- name: docker-ca
+  type: certificate
+  options:
+    is_ca: true
+    common_name: dockerCA
+- name: docker-tls
+  type: certificate
+  options:
+    ca: docker-ca
+    common_name: docker
+    extended_key_usage:
+    - client_auth
+
+stemcells:
+- alias: default
+  os: ubuntu-trusty
+  version: latest
+
+update:
+  canaries: 0
+  canary_watch_time: 1000-60000
+  update_watch_time: 1000-60000
+  max_in_flight: 32
+  serial: false
+
+releases:
+- name: storm
+  version: 0+dev.44
