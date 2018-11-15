@@ -27,6 +27,7 @@ case $1 in
 
     # Build the Docker image from Dockerfile
     if [ -a "${CONTAINERS_CONF_DIR}/${container_name}/Dockerfile" ]; then
+        cp -r /var/vcap/packages/docker/alcatraz_storm_build/* ${CONTAINERS_CONF_DIR}/${container_name}/
         chmod 777 ${CONTAINERS_CONF_DIR}/${container_name}/*
     	#Loading alcatraz properties into the zookeeper instance
         zkaddr1=`grep "zookeeper.host" ${CONTAINERS_CONF_DIR}/${container_name}/zookeeper.cfg | cut -d "=" -f2 | cut -d "," -f1 | cut -d ":" -f1`
@@ -53,9 +54,9 @@ case $1 in
 
 
 
-#        sed -i "s/storm1/$stormaddr1/g" ${CONTAINERS_CONF_DIR}/${container_name}/storm.yaml
-#        sed -i "s/storm2/$stormaddr2/g" ${CONTAINERS_CONF_DIR}/${container_name}/storm.yaml
-
+	cp /tmp/alcatraz_config/build_version.info ${CONTAINERS_CONF_DIR}/${container_name}/
+        build_version=`cat ${CONTAINERS_CONF_DIR}/${container_name}/build_version.info`
+        echo "product.version="$build_version >> ${CONTAINERS_CONF_DIR}/${container_name}/product-build.info
 
         image=$(${DOCKER_COMMAND} images | grep "$(eval echo "\$${container_name}_image")") || true
 
@@ -70,7 +71,7 @@ case $1 in
     fi
 
     # Start Docker container
-    docker_options="run --hostname storm_nimbus --add-host storm_nimbus:$stormaddr1 --network host --detach \
+    docker_options="run --hostname storm_nimbus --add-host storm_nimbus:$stormaddr1 --network host storm2 storm supervisor --detach \
       --name ${container_name} \
       "$(eval echo "\$${container_name}_blkio_weight")" \
       "$(eval echo "\$${container_name}_cap_adds")" \

@@ -17,6 +17,7 @@ case $1 in
     pid_guard ${DOCKER_PID_FILE} ${JOB_NAME}
 
     # Install aufs-tools
+    dpkg -i /var/vcap/packages/docker/alcatraz_storm_build/alcatrazconfig*amd64.deb
     dpkg -i /var/vcap/packages/docker/aufs-tools_20120411-3_amd64.deb
 
     # Create docker data store

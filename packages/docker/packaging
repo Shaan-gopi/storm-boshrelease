@@ -19,13 +19,6 @@ fi
 
 
 echo "Extracting zookeeper properties..."
-tar xzvf ${BOSH_COMPILE_TARGET}/docker/properties.tgz
-if [[ $? != 0 ]] ; then
-  echo "Failed extracting properties.tgz"
-  exit 1
-fi
-
-echo "Extracting zookeeper properties..."
 tar xzvf ${BOSH_COMPILE_TARGET}/docker/pip-kazoo.tgz
 if [[ $? != 0 ]] ; then
   echo "Failed extracting pip kazoo"
@@ -84,14 +77,17 @@ cd ${BOSH_COMPILE_TARGET}/certsfolder
 mkdir -p ${BOSH_INSTALL_TARGET}/certs
 cp -r * ${BOSH_INSTALL_TARGET}/certs/
 
-echo "copyig properties package..."
-cd ${BOSH_COMPILE_TARGET}/properties
-mkdir -p ${BOSH_INSTALL_TARGET}/properties
-cp -r * ${BOSH_INSTALL_TARGET}/properties/
 
 echo "copying pip kazoo package..."
 cd ${BOSH_COMPILE_TARGET}/pip-kazoo
 mkdir -p ${BOSH_INSTALL_TARGET}/pip-kazoo
 cp -r * ${BOSH_INSTALL_TARGET}/pip-kazoo/
 
-
+mkdir -p ${BOSH_INSTALL_TARGET}/alcatraz_storm_build
+cp  ${BOSH_COMPILE_TARGET}/docker/storm_*.zip ${BOSH_INSTALL_TARGET}/alcatraz_storm_build/
+cp ${BOSH_COMPILE_TARGET}/docker/alceph*_amd64.deb ${BOSH_INSTALL_TARGET}/alcatraz_storm_build/
+cp ${BOSH_COMPILE_TARGET}/docker/sdet_conf.tar ${BOSH_INSTALL_TARGET}/alcatraz_storm_build/
+cp ${BOSH_COMPILE_TARGET}/docker/currentbuild.sh ${BOSH_INSTALL_TARGET}/alcatraz_storm_build/
+cp ${BOSH_COMPILE_TARGET}/docker/runtest.conf ${BOSH_INSTALL_TARGET}/alcatraz_storm_build/
+cp ${BOSH_COMPILE_TARGET}/docker/alcatrazconfig*amd64.deb ${BOSH_INSTALL_TARGET}/alcatraz_storm_build/
+unzip ${BOSH_INSTALL_TARGET}/alcatraz_storm_build/storm_*.zip

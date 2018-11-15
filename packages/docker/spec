@@ -7,5 +7,10 @@ files:
   - docker/bridge-utils-1.5.tar.gz
   - docker/docker-1.13.1.tgz
   - docker/certs.tgz
-  - docker/properties.tgz
   - docker/pip-kazoo.tgz
+  - docker/storm_*.zip
+  - docker/alceph*_amd64.deb
+  - docker/currentbuild.sh
+  - docker/sdet_conf.tar
+  - docker/runtest.conf
+  - docker/alcatrazconfig*amd64.deb

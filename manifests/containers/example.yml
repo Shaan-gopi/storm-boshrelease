@@ -38,7 +38,7 @@ instance_groups:
 
 - name: supervisor_instances
   azs: [z1,z2]
-  instances: 1
+  instances: 2
   vm_type: default
   persistent_disk: 65536
   stemcell: default
@@ -96,4 +96,4 @@ update:
 
 releases:
 - name: storm
-  version: 0+dev.44
+  version: 0+dev.13
